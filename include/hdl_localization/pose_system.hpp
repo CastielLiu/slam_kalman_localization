@@ -1,7 +1,7 @@
 #ifndef POSE_SYSTEM_HPP
 #define POSE_SYSTEM_HPP
 
-#include <kalman/unscented_kalman_filter.hpp>
+#include <Eigen/Dense>
 
 namespace hdl_localization {
 
@@ -21,23 +21,23 @@ public:
     dt = 0.01;
   }
 
-  // system equation
+  // system equation 系统方程，根据上次状态和控制量预测当前状态
   VectorXt f(const VectorXt& state, const VectorXt& control) const {
     VectorXt next_state(16);
 
-    Vector3t pt = state.middleRows(0, 3);
-    Vector3t vt = state.middleRows(3, 3);
-    Quaterniont qt(state[6], state[7], state[8], state[9]);
-    qt.normalize();
+    Vector3t pt = state.middleRows(0, 3); //位置
+    Vector3t vt = state.middleRows(3, 3); //速度
+    Quaterniont qt(state[6], state[7], state[8], state[9]); //四元数
+    qt.normalize(); //四元数归一化
 
-    Vector3t acc_bias = state.middleRows(10, 3);
-    Vector3t gyro_bias = state.middleRows(13, 3);
+    Vector3t acc_bias = state.middleRows(10, 3); //线加速度偏差
+    Vector3t gyro_bias = state.middleRows(13, 3);//角加速度偏差
 
-    Vector3t raw_acc = control.middleRows(0, 3);
-    Vector3t raw_gyro = control.middleRows(3, 3);
+    Vector3t raw_acc = control.middleRows(0, 3); //控制线加速度
+    Vector3t raw_gyro = control.middleRows(3, 3);//控制角加速度
 
     // position
-    next_state.middleRows(0, 3) = pt + vt * dt;					//
+    next_state.middleRows(0, 3) = pt + vt * dt;		//p1=p0+vt
 
     // velocity
     Vector3t g(0.0f, 0.0f, -9.80665f);

@@ -90,9 +90,9 @@ public:
    * @return cloud aligned to the globalmap
    */
   pcl::PointCloud<PointT>::Ptr correct(const pcl::PointCloud<PointT>::ConstPtr& cloud) {
-    Eigen::Matrix4f init_guess = Eigen::Matrix4f::Identity();
-    init_guess.block<3, 3>(0, 0) = quat().toRotationMatrix();
-    init_guess.block<3, 1>(0, 3) = pos();
+    Eigen::Matrix4f init_guess = Eigen::Matrix4f::Identity(); 
+    init_guess.block<3, 3>(0, 0) = quat().toRotationMatrix(); //利用滤波器预测位姿作为点云配准初始估计
+    init_guess.block<3, 1>(0, 3) = pos();  
 
     pcl::PointCloud<PointT>::Ptr aligned(new pcl::PointCloud<PointT>());
     registration->setInputSource(cloud);
@@ -106,6 +106,7 @@ public:
       q.coeffs() *= -1.0f;
     }
 
+    //点云配准所得位姿作为滤波器观测值
     Eigen::VectorXf observation(7);
     observation.middleRows(0, 3) = p;
     observation.middleRows(3, 4) = Eigen::Vector4f(q.w(), q.x(), q.y(), q.z());
