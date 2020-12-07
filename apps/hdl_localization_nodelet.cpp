@@ -78,6 +78,8 @@ private:
         voxelgrid->setLeafSize(downsample_resolution, downsample_resolution, downsample_resolution);
         downsample_filter = voxelgrid;
     }
+
+    kalman_filter_type = private_nh.param<std::string>("kalman_filter_type", "unscented_kalman");
     
     std::string ndt_neighbor_search_method = private_nh.param<std::string>("ndt_neighbor_search_method", "DIRECT7");
     double ndt_resolution = private_nh.param<double>("ndt_resolution", 1.0);
@@ -114,11 +116,11 @@ private:
     if(private_nh.param<bool>("specify_init_pose", true)) 
     {
       NODELET_INFO("initialize pose estimator with specified parameters!!");
-      pose_estimator.reset(new hdl_localization::PoseEstimator(registration,
-        ros::Time::now(),
+      pose_estimator.reset(new hdl_localization::PoseEstimator(registration,ros::Time::now(),
         Eigen::Vector3f(private_nh.param<double>("init_pos_x", 0.0), private_nh.param<double>("init_pos_y", 0.0), private_nh.param<double>("init_pos_z", 0.0)),
         Eigen::Quaternionf(private_nh.param<double>("init_ori_w", 1.0), private_nh.param<double>("init_ori_x", 0.0), private_nh.param<double>("init_ori_y", 0.0), private_nh.param<double>("init_ori_z", 0.0)),
-        private_nh.param<double>("cool_time_duration", 0.5)
+        private_nh.param<double>("cool_time_duration", 0.5),
+        kalman_filter_type
       ));
     }
   }
@@ -245,7 +247,8 @@ private:
             ros::Time::now(),
             Eigen::Vector3f(p.x, p.y, p.z),
             Eigen::Quaternionf(q.w, q.x, q.y, q.z),
-            private_nh.param<double>("cool_time_duration", 0.5))
+            private_nh.param<double>("cool_time_duration", 0.5),
+            kalman_filter_type)
     );
   }
 
@@ -360,6 +363,8 @@ private:
 
   // processing time buffer
   boost::circular_buffer<double> processing_time;
+
+  std::string kalman_filter_type;
 };
 
 }

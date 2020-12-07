@@ -65,7 +65,7 @@
     </node>
 
     <!-- hdl_localization_nodelet -->
-    <node pkg="nodelet" type="nodelet" name="hdl_localization_nodelet" args="load hdl_localization/HdlLocalizationNodelet $(arg nodelet_manager)">
+    <node pkg="nodelet" type="nodelet" name="hdl_localization_nodelet" args="load hdl_localization/HdlLocalizationNodelet $(arg nodelet_manager)" output="screen">
         <param name="points_topic" value="/floor_detection/floor_filtered_points"/>
         <!-- odometry frame_id -->
         <param name="odom_child_frame_id" value="$(arg odom_child_frame_id)" />
@@ -91,6 +91,6 @@
         <param name="init_ori_y" value="0.0" />
         <param name="init_ori_z" value="0.0" />
         <!-- kalman filter unscented_kalman/cubature_kalman-->
-        <param name="kalman_filter_type" value="cubature_kalman" />
+        <param name="kalman_filter_type" value="cubature_kalman" /> 
     </node>
 </launch>

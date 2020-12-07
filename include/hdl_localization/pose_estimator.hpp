@@ -30,7 +30,9 @@ public:
    * @param quat                initial orientation
    * @param cool_time_duration  during "cool time", prediction is not performed
    */
-  PoseEstimator(pcl::Registration<PointT, PointT>::Ptr& registration, const ros::Time& stamp, const Eigen::Vector3f& pos, const Eigen::Quaternionf& quat, double cool_time_duration = 1.0)
+  PoseEstimator(pcl::Registration<PointT, PointT>::Ptr& registration, const ros::Time& stamp, 
+                const Eigen::Vector3f& pos, const Eigen::Quaternionf& quat, 
+                double cool_time_duration = 1.0, std::string kalman_filter_type = "unscented_kalman")
     : init_stamp(stamp),
       registration(registration),
       cool_time_duration(cool_time_duration)
@@ -56,11 +58,11 @@ public:
     Eigen::MatrixXf cov = Eigen::MatrixXf::Identity(16, 16) * 0.01;
 
     PoseSystem system;
-    ros::NodeHandle nh_private("~");
-    std::string kalman_filter_type = nh_private.param<std::string>("kalman_filter_type","");
+    
     if(kalman_filter_type == "unscented_kalman")
         kalman.reset(new UnscentedKalmanFilterX<float, PoseSystem>(system, 16, 6, 7, process_noise, measurement_noise, mean, cov));
-    else{
+    else
+    {
       kalman.reset(new CubatureKalmanFilterX<float, PoseSystem>(system, 16, 6, 7, process_noise, measurement_noise, mean, cov));
       kalman_filter_type = "cubature_kalman";
     }
