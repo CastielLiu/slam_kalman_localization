@@ -90,19 +90,22 @@ public:
    * @return cloud aligned to the globalmap
    */
   pcl::PointCloud<PointT>::Ptr correct(const pcl::PointCloud<PointT>::ConstPtr& cloud) {
-    Eigen::Matrix4f init_guess = Eigen::Matrix4f::Identity(); 
+    Eigen::Matrix4f init_guess = Eigen::Matrix4f::Identity();
     init_guess.block<3, 3>(0, 0) = quat().toRotationMatrix(); //利用滤波器预测位姿作为点云配准初始估计
-    init_guess.block<3, 1>(0, 3) = pos();  
+    init_guess.block<3, 1>(0, 3) = pos();
 
     pcl::PointCloud<PointT>::Ptr aligned(new pcl::PointCloud<PointT>());
     registration->setInputSource(cloud);
     registration->align(*aligned, init_guess);
 
     Eigen::Matrix4f trans = registration->getFinalTransformation();
+    //std::cout << "ukf correct, cloud registration score: " << registration->getFitnessScore() << std::endl;
+    
     Eigen::Vector3f p = trans.block<3, 1>(0, 3);
     Eigen::Quaternionf q(trans.block<3, 3>(0, 0));
 
-    if(quat().coeffs().dot(q.coeffs()) < 0.0f) {
+    if(quat().coeffs().dot(q.coeffs()) < 0.0f) 
+    {
       q.coeffs() *= -1.0f;
     }
 
@@ -116,18 +119,21 @@ public:
   }
 
   /* getters */
-  Eigen::Vector3f pos() const {
-    auto mean = ukf->getMean();
+  Eigen::Vector3f pos() const 
+  {
+  	auto mean = ukf->getMean();
     return Eigen::Vector3f(mean[0], mean[1], mean[2]);
   }
 
-  Eigen::Vector3f vel() const {
-    auto mean = ukf->getMean();
+  Eigen::Vector3f vel() const 
+  {
+  	auto mean = ukf->getMean();
     return Eigen::Vector3f(mean[3], mean[4], mean[5]);
   }
 
-  Eigen::Quaternionf quat() const {
-    auto mean = ukf->getMean();
+  Eigen::Quaternionf quat() const 
+  {
+  	auto mean = ukf->getMean();
     return Eigen::Quaternionf(mean[6], mean[7], mean[8], mean[9]).normalized();
   }
 
