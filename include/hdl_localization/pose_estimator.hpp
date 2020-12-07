@@ -56,7 +56,15 @@ public:
     Eigen::MatrixXf cov = Eigen::MatrixXf::Identity(16, 16) * 0.01;
 
     PoseSystem system;
-    ukf.reset(new UnscentedKalmanFilterX<float, PoseSystem>(system, 16, 6, 7, process_noise, measurement_noise, mean, cov));
+    ros::NodeHandle nh_private("~");
+    std::string kalman_filter_type = nh_private.param<std::string>("kalman_filter_type","");
+    if(kalman_filter_type == "unscented_kalman")
+        kalman.reset(new UnscentedKalmanFilterX<float, PoseSystem>(system, 16, 6, 7, process_noise, measurement_noise, mean, cov));
+    else{
+      kalman.reset(new CubatureKalmanFilterX<float, PoseSystem>(system, 16, 6, 7, process_noise, measurement_noise, mean, cov));
+      kalman_filter_type = "cubature_kalman";
+    }
+    ROS_INFO("kalman_filter_type: %s" , kalman_filter_type.c_str());
   }
 
   /**
@@ -74,14 +82,14 @@ public:
     double dt = (stamp - prev_stamp).toSec();
     prev_stamp = stamp;
 
-    ukf->setProcessNoiseCov(process_noise * dt);
-    ukf->getSystem().dt = dt;
+    kalman->setProcessNoiseCov(process_noise * dt);
+    kalman->getSystem().dt = dt;
 
     Eigen::VectorXf control(6);
     control.head<3>() = acc;
     control.tail<3>() = gyro;
 
-    ukf->predict(control);
+    kalman->predict(control);
   }
 
   /**
@@ -99,7 +107,7 @@ public:
     registration->align(*aligned, init_guess);
 
     Eigen::Matrix4f trans = registration->getFinalTransformation();
-    //std::cout << "ukf correct, cloud registration score: " << registration->getFitnessScore() << std::endl;
+    //std::cout << "kalman correct, cloud registration score: " << registration->getFitnessScore() << std::endl;
     
     Eigen::Vector3f p = trans.block<3, 1>(0, 3);
     Eigen::Quaternionf q(trans.block<3, 3>(0, 0));
@@ -114,26 +122,26 @@ public:
     observation.middleRows(0, 3) = p;
     observation.middleRows(3, 4) = Eigen::Vector4f(q.w(), q.x(), q.y(), q.z());
 
-    ukf->correct(observation);
+    kalman->correct(observation);
     return aligned;
   }
 
   /* getters */
   Eigen::Vector3f pos() const 
   {
-  	auto mean = ukf->getMean();
+  	auto mean = kalman->getMean();
     return Eigen::Vector3f(mean[0], mean[1], mean[2]);
   }
 
   Eigen::Vector3f vel() const 
   {
-  	auto mean = ukf->getMean();
+  	auto mean = kalman->getMean();
     return Eigen::Vector3f(mean[3], mean[4], mean[5]);
   }
 
   Eigen::Quaternionf quat() const 
   {
-  	auto mean = ukf->getMean();
+  	auto mean = kalman->getMean();
     return Eigen::Quaternionf(mean[6], mean[7], mean[8], mean[9]).normalized();
   }
 
@@ -150,7 +158,7 @@ private:
   double cool_time_duration;    //
 
   Eigen::MatrixXf process_noise;
-  std::unique_ptr<UnscentedKalmanFilterX<float, PoseSystem>> ukf;
+  std::unique_ptr<KalmanFilter<float, PoseSystem>> kalman;
 
   pcl::Registration<PointT, PointT>::Ptr registration;
 };

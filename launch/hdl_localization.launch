@@ -67,11 +67,11 @@
     <!-- hdl_localization_nodelet -->
     <node pkg="nodelet" type="nodelet" name="hdl_localization_nodelet" args="load hdl_localization/HdlLocalizationNodelet $(arg nodelet_manager)">
         <param name="points_topic" value="/floor_detection/floor_filtered_points"/>
-        <remap from="/gpsimu_driver/imu_data" to="$(arg imu_topic)" />
         <!-- odometry frame_id -->
         <param name="odom_child_frame_id" value="$(arg odom_child_frame_id)" />
         <!-- imu settings -->
         <!-- during "cool_time", imu inputs are ignored -->
+        <remap from="/gpsimu_driver/imu_data" to="$(arg imu_topic)" />
         <param name="use_imu" value="false" />
         <param name="invert_imu" value="true" />
         <param name="cool_time_duration" value="2.0" />
@@ -90,5 +90,7 @@
         <param name="init_ori_x" value="0.0" />
         <param name="init_ori_y" value="0.0" />
         <param name="init_ori_z" value="0.0" />
+        <!-- kalman filter unscented_kalman/cubature_kalman-->
+        <param name="kalman_filter_type" value="cubature_kalman" />
     </node>
 </launch>

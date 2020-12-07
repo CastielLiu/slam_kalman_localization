@@ -74,7 +74,7 @@ public:
   virtual void predict(const VectorXt& control) override
   {
     // calculate cubature points
-    ensurePositiveFinite(cov);
+    this->ensurePositiveFinite(cov);
     computeCubaturePoints(mean, cov, cubature_points); //根据上一时刻的均值和方差计算cubature点
     for (int i = 0; i < S; i++) {
       cubature_points.row(i) = system.f(cubature_points.row(i), control); //根据系统方程传播cubature点
@@ -114,7 +114,7 @@ public:
     ext_cov_pred.topLeftCorner(N, N) = MatrixXt(cov);
     ext_cov_pred.bottomRightCorner(M, M) = measurement_noise;
 
-    ensurePositiveFinite(ext_cov_pred);
+    this->ensurePositiveFinite(ext_cov_pred); //模板基类成员函数，需使用this访问，或者 BaseClass<T, System>::ensurePositiveFinite
     computeCubaturePoints(ext_mean_pred, ext_cov_pred, ext_cubature_points); //根据预测均值和协方差以及测量噪声计算cubature点
                                                                              //此时测量误差并未添加到cubature主体,而是存放于拓展部分
 
