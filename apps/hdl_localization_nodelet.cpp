@@ -216,6 +216,8 @@ private:
       aligned_pub.publish(aligned);
     }
 
+    auto pose_matrix = pose_estimator->matrix();
+    ROS_INFO("Pose: %.2f\t%.2f\t%.2f", pose_matrix(0,3), pose_matrix(1,3), pose_matrix(2,3));
     publish_odometry(points_msg->header.stamp, pose_estimator->matrix(), pose_estimator->vel());
   }
 

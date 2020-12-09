@@ -50,7 +50,6 @@ public:
     KalmanFilter<T, System>(_system, _state_dim, _input_dim, _measurement_dim, _process_noise, _measurement_noise, _mean, _cov),
     S(2 * _state_dim) //容积点个数
   {
-    
     weights.resize(S, 1);
     cubature_points.resize(S, N);
     ext_weights.resize(2*(N+M), 1);
