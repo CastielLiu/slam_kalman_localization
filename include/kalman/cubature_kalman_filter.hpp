@@ -52,17 +52,16 @@ public:
   {
     weights.resize(S, 1);
     cubature_points.resize(S, N);
-    ext_weights.resize(2*(N+M), 1);
-    ext_cubature_points.resize(2*(N+M), N + M);
-    expected_measurements.resize(2*(N+M), M);
+    ext_weights.resize(S, 1);
+    ext_cubature_points.resize(S, N + M);
+    expected_measurements.resize(S, M);
 
-    // initialize weights for cubature filter
+    
     for (int i = 0; i < S; i++)
-      weights[i] = 1.0 / S;
-
-    // weights for extended state space which includes error variances
-    for (int i = 0; i < 2*(N+M); i++)
-      ext_weights[i] = 1.0 / 2*(N+M);
+    {
+      weights[i] = 1.0 / S;     // initialize weights for cubature filter
+      ext_weights[i] = 1.0 / S; // weights for extended state space which includes error variances
+    }      
       
   }
 
@@ -75,29 +74,37 @@ public:
     // calculate cubature points
     this->ensurePositiveFinite(cov);
     computeCubaturePoints(mean, cov, cubature_points); //根据上一时刻的均值和方差计算cubature点
-    for (int i = 0; i < S; i++) {
+
+    for (int i = 0; i < S; i++) 
       cubature_points.row(i) = system.f(cubature_points.row(i), control); //根据系统方程传播cubature点
-    }
 
     const auto& Q = process_noise; //系统噪声|过程噪声
 
     // unscented transform
-    VectorXt mean_pred(mean.size());
-    MatrixXt cov_pred(cov.rows(), cov.cols());
+    VectorXt mean_pred(N);
+    MatrixXt cov_pred(N, N);
 
     mean_pred.setZero();
     cov_pred.setZero();
-    for (int i = 0; i < S; i++) {
-      mean_pred += weights[i] * cubature_points.row(i);   //传播后的cubature点集均值
-    }
+    for (int i = 0; i < S; i++) 
+      mean_pred += weights[i] * cubature_points.row(i).transpose();   //传播后的cubature点集均值
+
     for (int i = 0; i < S; i++) 
       cov_pred += weights[i] * cubature_points.row(i).transpose() * cubature_points.row(i);
-    cov_pred -= mean_pred.transpose() * mean_pred; //传播后的cubature点集方差
+
+    cov_pred -= mean_pred * mean_pred.transpose(); //传播后的cubature点集方差
     cov_pred += Q;                                      //加上过程噪声
 
     //得到预测值和预测协方差
     mean = mean_pred;
     cov = cov_pred;
+    /*
+    std::cout << "predict mean \r\n";
+    std::cout << std::fixed << std::setprecision(2) << mean << std::endl;
+
+    std::cout << "predict cov \r\n";
+    std::cout << std::fixed << std::setprecision(2) << cov << std::endl;
+*/
   }
 
   /**
@@ -114,39 +121,51 @@ public:
     ext_cov_pred.bottomRightCorner(M, M) = measurement_noise;
 
     this->ensurePositiveFinite(ext_cov_pred); //模板基类成员函数，需使用this访问，或者 BaseClass<T, System>::ensurePositiveFinite
-    computeCubaturePoints(ext_mean_pred, ext_cov_pred, ext_cubature_points); //根据预测均值和协方差以及测量噪声计算cubature点
-                                                                             //此时测量误差并未添加到cubature主体,而是存放于拓展部分
+    computeCubaturePoints(ext_mean_pred, ext_cov_pred, ext_cubature_points); //根据预测均值和协方差以及测量噪声计算cubature点                                                                      //此时测量误差并未添加到cubature主体,而是存放于拓展部分
 
     // cubature transform
     expected_measurements.setZero();
-    for (int i = 0; i < ext_cubature_points.rows(); i++) {
+    for (int i = 0; i < S; i++) {
       expected_measurements.row(i) = system.h(ext_cubature_points.row(i).transpose().topLeftCorner(N, 1));     //观测方程传播cubature点集
-      expected_measurements.row(i) += VectorXt(ext_cubature_points.row(i).transpose().bottomRightCorner(M, 1));//添加测量噪声
+      expected_measurements.row(i) += ext_cubature_points.row(i).bottomRightCorner(M, 1);//添加测量噪声
     }
 
     VectorXt expected_measurement_mean = VectorXt::Zero(M);
-    for (int i = 0; i < ext_cubature_points.rows(); i++) {
-      expected_measurement_mean += ext_weights[i] * expected_measurements.row(i);  //传播后的cubature点集均值
-    }
+    for (int i = 0; i < S; i++) 
+      expected_measurement_mean += ext_weights[i] * expected_measurements.row(i).transpose();  //传播后的cubature点集均值
+   
     MatrixXt expected_measurement_cov = MatrixXt::Zero(M, M);
-    for (int i = 0; i < ext_cubature_points.rows(); i++)
+    for (int i = 0; i < S; i++)
       expected_measurement_cov += ext_weights[i] * expected_measurements.row(i).transpose() * expected_measurements.row(i);        
 
-    expected_measurement_cov -= expected_measurement_mean.transpose() * expected_measurement_mean; //传播后的cubature点集方差
+    expected_measurement_cov -= expected_measurement_mean * expected_measurement_mean.transpose(); //传播后的cubature点集方差
     expected_measurement_cov += measurement_noise;  //R = measurement_noise
 
     // calculated transformed covariance
-    MatrixXt cross_cov = MatrixXt::Zero(N, M); //互协方差
+    MatrixXt cross_cov = MatrixXt::Zero(N+M, M); //状态和观测的互协方差阵
+    //for(int i=0; i<S; ++i)
+    //  cross_cov += ext_weights[i] * ext_cubature_points.row(i).transpose() * expected_measurements.row(i);
+    //cross_cov -= ext_mean_pred * expected_measurement_mean;
     for(int i=0; i<S; ++i)
-      cross_cov += ext_weights[i] * ext_cubature_points.row(i).transpose() * expected_measurements.row(i);
-    cross_cov -= ext_mean_pred * expected_measurement_mean;
+    {
+       auto dx = ext_cubature_points.row(i).transpose() - ext_mean_pred;                //col　(N+M * 1)
+       auto dz = expected_measurements.row(i) - expected_measurement_mean.transpose();  //row  (1   * M)
+       auto dxdz = dx * dz;                                                             //(N+M * M)
+       cross_cov += ext_weights[i] * dxdz;
+    }
 
-    kalman_gain = cross_cov * cross_cov.inverse(); //卡尔曼增益
+    kalman_gain = cross_cov * expected_measurement_cov.inverse(); //卡尔曼增益 = 互协方差/观测预测协方差
+
+    std::cout << "kalman_gain \r\n";
+    std::cout << std::fixed << std::setprecision(2) << kalman_gain << std::endl;
 
     VectorXt ext_mean = ext_mean_pred + kalman_gain * (measurement - expected_measurement_mean); //最优估计
     MatrixXt ext_cov = ext_cov_pred - kalman_gain * expected_measurement_cov * kalman_gain.transpose();    //最优估计的协方差
 
-    mean = ext_mean.topLeftCorner(N, 1);
+
+    mean.middleRows(0, 3) = measurement.middleRows(0, 3);
+    mean.middleRows(6, 4) = measurement.middleRows(3, 4);
+    //mean = ext_mean.topLeftCorner(N, 1);
     cov = ext_cov.topLeftCorner(N, N);
   }
 
@@ -176,12 +195,19 @@ private:
     assert(cov.rows() == n && cov.cols() == n);
 
     Eigen::LLT<MatrixXt> llt(cov);
-    MatrixXt P_chol = llt.matrixL();
-    MatrixXt l = P_chol * sqrt(n);
+    MatrixXt P_chol = llt.matrixU();
+    MatrixXt U = P_chol * sqrt(n);
+/*
+    std::cout << "mean \r\n";
+    std::cout << std::fixed << std::setprecision(2) << mean << std::endl;
 
-    for (int i = 0; i < n; i++) {
-      cubature_points.row(  i) = mean + l.col(i);
-      cubature_points.row(n+i) = mean - l.col(i);
+    std::cout << "U \r\n";
+    std::cout << std::fixed << std::setprecision(2) << U << std::endl;
+*/
+    for (int i = 0; i < n; i++) 
+    {
+      cubature_points.row(  i) = mean.transpose() + U.row(i);
+      cubature_points.row(n+i) = mean.transpose() - U.row(i);
     }
   }
 
