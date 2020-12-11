@@ -111,7 +111,7 @@ public:
    * @brief correct      校正函数
    * @param measurement  观测值
    */
-  virtual void correct(const VectorXt& measurement) override
+  virtual void correct_try(const VectorXt& measurement)   //error
   {
     // create extended state space which includes error variances
     VectorXt ext_mean_pred = VectorXt::Zero(N + M, 1);
@@ -143,30 +143,62 @@ public:
 
     // calculated transformed covariance
     MatrixXt cross_cov = MatrixXt::Zero(N+M, M); //状态和观测的互协方差阵
-    //for(int i=0; i<S; ++i)
-    //  cross_cov += ext_weights[i] * ext_cubature_points.row(i).transpose() * expected_measurements.row(i);
-    //cross_cov -= ext_mean_pred * expected_measurement_mean;
+
     for(int i=0; i<S; ++i)
-    {
-       auto dx = ext_cubature_points.row(i).transpose() - ext_mean_pred;                //col　(N+M * 1)
-       auto dz = expected_measurements.row(i) - expected_measurement_mean.transpose();  //row  (1   * M)
-       auto dxdz = dx * dz;                                                             //(N+M * M)
-       cross_cov += ext_weights[i] * dxdz;
-    }
+      cross_cov += ext_weights[i] * ext_cubature_points.row(i).transpose() * expected_measurements.row(i);
+    cross_cov -= ext_mean_pred * expected_measurement_mean.transpose();
 
     kalman_gain = cross_cov * expected_measurement_cov.inverse(); //卡尔曼增益 = 互协方差/观测预测协方差
 
-    std::cout << "kalman_gain \r\n";
-    std::cout << std::fixed << std::setprecision(2) << kalman_gain << std::endl;
+    //std::cout << "kalman_gain \r\n";
+    //std::cout << std::fixed << std::setprecision(2) << kalman_gain << std::endl;
 
-    VectorXt ext_mean = ext_mean_pred + kalman_gain * (measurement - expected_measurement_mean); //最优估计
-    MatrixXt ext_cov = ext_cov_pred - kalman_gain * expected_measurement_cov * kalman_gain.transpose();    //最优估计的协方差
+    VectorXt ext_mean = ext_mean_pred + kalman_gain * (measurement - expected_measurement_mean);          //最优估计
+    MatrixXt ext_cov = ext_cov_pred - kalman_gain * expected_measurement_cov * kalman_gain.transpose();   //最优估计的协方差
 
-
-    mean.middleRows(0, 3) = measurement.middleRows(0, 3);
-    mean.middleRows(6, 4) = measurement.middleRows(3, 4);
-    //mean = ext_mean.topLeftCorner(N, 1);
+    mean = ext_mean.topLeftCorner(N, 1);
     cov = ext_cov.topLeftCorner(N, N);
+  }
+
+  virtual void correct(const VectorXt& measurement) override
+  {
+    //预测得到的均值和协方差
+    VectorXt mean_pred = VectorXt(mean);
+    MatrixXt cov_pred  = MatrixXt(cov);
+
+    this->ensurePositiveFinite(cov); //模板基类成员函数，需使用this访问，或者 BaseClass<T, System>::ensurePositiveFinite
+    computeCubaturePoints(mean, cov, cubature_points); //根据预测均值和协方差以及测量噪声计算cubature点                                                                      //此时测量误差并未添加到cubature主体,而是存放于拓展部分
+
+    // cubature transform
+    expected_measurements.setZero();
+    for (int i = 0; i < S; i++)
+      expected_measurements.row(i) = system.h(cubature_points.row(i).transpose());     //观测方程传播cubature点集
+
+    VectorXt expected_measurement_mean = VectorXt::Zero(M);
+    for (int i = 0; i < S; i++) 
+      expected_measurement_mean += weights[i] * expected_measurements.row(i).transpose();  //传播后的cubature点集均值
+   
+    MatrixXt expected_measurement_cov = MatrixXt::Zero(M, M);
+    for (int i = 0; i < S; i++)
+      expected_measurement_cov += weights[i] * expected_measurements.row(i).transpose() * expected_measurements.row(i);        
+
+    expected_measurement_cov -= expected_measurement_mean * expected_measurement_mean.transpose(); //传播后的cubature点集方差
+    expected_measurement_cov += measurement_noise;  //R = measurement_noise
+
+    // calculated transformed covariance
+    MatrixXt cross_cov = MatrixXt::Zero(N, M); //状态和观测的互协方差阵
+
+    for(int i=0; i<S; ++i)
+      cross_cov += weights[i] * cubature_points.row(i).transpose() * expected_measurements.row(i);
+    cross_cov -= mean_pred * expected_measurement_mean.transpose();
+
+    kalman_gain = cross_cov * expected_measurement_cov.inverse(); //卡尔曼增益 = 互协方差/观测预测协方差
+
+    //std::cout << "kalman_gain \r\n";
+    //std::cout << std::fixed << std::setprecision(2) << kalman_gain << std::endl;
+
+    mean = mean_pred + kalman_gain * (measurement - expected_measurement_mean);           //最优估计
+    cov  = cov_pred  - kalman_gain * expected_measurement_cov * kalman_gain.transpose();  //最优估计的协方差 
   }
 
   const MatrixXt& getSamplePoints() const { return cubature_points; }
@@ -197,21 +229,13 @@ private:
     Eigen::LLT<MatrixXt> llt(cov);
     MatrixXt P_chol = llt.matrixU();
     MatrixXt U = P_chol * sqrt(n);
-/*
-    std::cout << "mean \r\n";
-    std::cout << std::fixed << std::setprecision(2) << mean << std::endl;
 
-    std::cout << "U \r\n";
-    std::cout << std::fixed << std::setprecision(2) << U << std::endl;
-*/
     for (int i = 0; i < n; i++) 
     {
-      cubature_points.row(  i) = mean.transpose() + U.row(i);
-      cubature_points.row(n+i) = mean.transpose() - U.row(i);
+      cubature_points.row(  i) = mean + U.col(i);
+      cubature_points.row(n+i) = mean - U.col(i);
     }
   }
-
-
 };
 
 

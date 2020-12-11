@@ -149,8 +149,8 @@ public:
 
     kalman_gain = sigma * expected_measurement_cov.inverse();                       //计算卡尔曼增益
 
-    std::cout << "kalman_gain \r\n";
-    std::cout << std::fixed << std::setprecision(2) << kalman_gain << std::endl;
+    //std::cout << "kalman_gain \r\n";
+    //std::cout << std::fixed << std::setprecision(2) << kalman_gain << std::endl;
 
     VectorXt ext_mean = ext_mean_pred + kalman_gain * (measurement - expected_measurement_mean); //最优估计
     MatrixXt ext_cov = ext_cov_pred - kalman_gain * expected_measurement_cov * kalman_gain.transpose();    //最优估计的协方差
